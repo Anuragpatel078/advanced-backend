@@ -17,7 +17,7 @@ app.use(express.json());
 
 app.get("/",(req,res)=>{
   return res.status(200).json({
-    message: "hello from redis"
+    message: `hello from ${process.env.SERVER_NAME}`
    });
 });
 
