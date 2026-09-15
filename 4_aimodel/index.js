@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import express from "express"
 import dotenv from "dotenv"
 import { ChatGroq } from "@langchain/groq"
-import {Annotation,MessagesAnnotation,StateGraph} from "@langchain/langgraph"
+import {Annotation,MemorySaver,MessagesAnnotation,StateGraph} from "@langchain/langgraph"
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai"
 import {ToolNode} from "@langchain/langgraph/prebuilt";
 import { TavilySearch } from "@langchain/tavily";
@@ -49,14 +49,16 @@ const tool = new TavilySearch({
   topic: "general",
 });
 
+const checkPointer=new MemorySaver()
+
 
 const tools=[tool]
 const toolNode=new  ToolNode(tools)
 
 const llm=new ChatGroq({
     model:"openai/gpt-oss-120b",
-    temperature:0.7,
-    maxTokens:100,
+    temperature:0,
+    maxTokens:500,
     maxRetries:2
 }).bindTools(tools)
 
@@ -73,8 +75,8 @@ const callLLM=async (state) =>{
     return {messages:[response]}
 }
 const shouldContinue=async(state)=>{
-    const lastMessage=state.messages[state.message.length-1]
-   if(lastMessage.tool_calls.length>0){
+    const lastMessage=state.messages[state.messages.length-1]
+   if(lastMessage.tool_calls?.length>0){
     return "tools"
    }
    else{
@@ -89,7 +91,8 @@ const graph=new StateGraph(MessagesAnnotation)
 // .addEdge("agent","__end__")
 .addEdge("tools","agent")
 .addConditionalEdges("agent",shouldContinue)
-.compile()
+.compile({checkpointer:checkPointer})
+
 
 
 
@@ -103,8 +106,13 @@ app.post("/ai",async(req,res)=>{
             content:input
         }
         ]
-    })
-    console.log(response)
+    },
+    {
+        configurable:{thread_id:"123"}
+    }
+)
+    
+    console.log(response.message)
 
      
     return res.status(200).json({"ai:":response.messages[response.messages.length-1].content})
